@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexiForge | Universal</title>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #10b981; --text: #f8fafc; --border: #334155; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; justify-content: center; min-height: 100vh; overflow-x: hidden; }
+        .app-container { display: grid; grid-template-columns: 1fr; width: 100%; max-width: 1200px; padding: 20px; gap: 20px; }
+        @media (min-width: 800px) { .app-container { grid-template-columns: 350px 1fr; } .sidebar { position: sticky; top: 20px; } }
+        .settings-panel { position: fixed; top: 0; right: -320px; width: 300px; height: 100%; background: var(--card); border-left: 1px solid var(--border); transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; padding: 25px; box-sizing: border-box; box-shadow: -10px 0 30px rgba(0,0,0,0.5); }
+        .settings-panel.open { right: 0; }
+        .card { background: var(--card); padding: 25px; border-radius: 20px; border: 1px solid var(--border); }
+        h1 { color: var(--accent); margin: 0; font-size: 1.8rem; letter-spacing: -1px; }
+        input, select { width: 100%; padding: 14px; margin: 10px 0; border-radius: 12px; border: 2px solid var(--border); background: #020617; color: white; font-size: 1rem; box-sizing: border-box; }
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; text-transform: uppercase; }
+        .btn-primary { background: var(--accent); color: #064e3b; margin-top: 10px; }
+        .btn-sec { background: var(--border); color: white; margin-top: 10px; font-size: 0.8rem; }
+        #output { background: #020617; padding: 20px; border-radius: 15px; border: 1px solid var(--border); height: 550px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--accent); line-height: 1.8; white-space: pre-wrap; }
+        .fav-box { margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); }
+        #favList { font-size: 0.85rem; color: #38bdf8; margin-top: 10px; }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .tech-tag { font-size: 0.7rem; color: #94a3b8; background: #0f172a; padding: 10px; border-radius: 10px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="settings-panel" id="sidePanel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
+        <strong data-i18n="settings">Settings</strong>
+        <button onclick="toggleSettings()" style="background:none; border:none; color:white; font-size:1.8rem;">&times;</button>
+    </div>
+    
+    <label data-i18n="language">Language</label>
+    <select id="langSelect" onchange="changeLang(this.value)">
+        <option value="pt">Português</option>
+        <option value="en">English</option>
+        <option value="es">Español</option>
+    </select>
+
+    <label data-i18n="limit" style="margin-top: 20px; display:block;">Generation Limit</label>
+    <select id="cfgLimit">
+        <option value="100000" data-i18n="limitLow">100,000 (Budget Phones)</option>
+        <option value="1000000" selected data-i18n="limitMid">1,000,000 (Standard)</option>
+        <option value="2000000" data-i18n="limitHigh">2,000,000 (PCs or High-end Phones)</option>
+    </select>
+
+    <div class="tech-tag">
+        <div id="cpuInfo">CPU: ---</div>
+        <div id="ramInfo">RAM: ~200MB (Stream Mode)</div>
+    </div>
+</div>
+
+<div class="app-container">
+    <div class="sidebar">
+        <div class="card">
+            <div class="header-actions">
+                <h1>LexiForge</h1>
+                <button onclick="toggleSettings()" style="background:none; border:none; color:white; font-size: 1.3rem; cursor:pointer;">⚙️</button>
+            </div>
+            <input type="text" id="wordInput" data-placeholder="inputPlaceholder" maxlength="12" spellcheck="false">
+            <button class="btn btn-primary" onclick="runForge()" data-i18n="btnForge">FORGE NAMES</button>
+            <div id="filterArea" style="display:none; margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                <input type="text" id="filterInput" data-placeholder="filterPlaceholder" oninput="runForge()">
+                <button class="btn btn-sec" onclick="suggestRandom()" data-i18n="btnRandom">RANDOM SUGGESTION</button>
+            </div>
+            <div class="fav-box">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="font-size: 0.75rem;" data-i18n="favorites">FAVORITES</strong>
+                    <button onclick="clearFavs()" style="background:none; border:none; color:#ef4444; font-size: 0.7rem;" data-i18n="clear">CLEAR</button>
+                </div>
+                <div id="favList"></div>
+            </div>
+        </div>
+    </div>
+    <div class="main-content">
+        <div id="output" data-i18n="initialState">Names will appear here...</div>
+    </div>
+</div>
+
+<script>
+    const i18n = {
+        pt: {
+            settings: "Configurações", language: "Idioma", limit: "Limite de Geração",
+            limitLow: "100.000 (Celulares Básicos)", limitMid: "1.000.000 (Padrão)", limitHigh: "2.000.000 (PCs ou Celulares Potentes)",
+            inputPlaceholder: "Palavra base", btnForge: "FORJAR NOMES", filterPlaceholder: "Filtrar resultados...",
+            btnRandom: "SUGESTÃO ALEATÓRIA", favorites: "FAVORITOS", clear: "LIMPAR", initialState: "Os nomes aparecerão aqui...",
+            confirmFav: "Salvar nos favoritos?", suggestTitle: "Sugestão"
+        },
+        en: {
+            settings: "Settings", language: "Language", limit: "Generation Limit",
+            limitLow: "100,000 (Budget Phones)", limitMid: "1,000,000 (Standard)", limitHigh: "2,000,000 (PCs or High-end Phones)",
+            inputPlaceholder: "Base word", btnForge: "FORGE NAMES", filterPlaceholder: "Filter results...",
+            btnRandom: "RANDOM SUGGESTION", favorites: "FAVORITES", clear: "CLEAR", initialState: "Names will appear here...",
+            confirmFav: "Save to favorites?", suggestTitle: "Suggestion"
+        },
+        es: {
+            settings: "Ajustes", language: "Idioma", limit: "Límite de Generación",
+            limitLow: "100.000 (Móviles Básicos)", limitMid: "1.000.000 (Estándar)", limitHigh: "2.000.000 (PCs o Móviles Potentes)",
+            inputPlaceholder: "Palabra base", btnForge: "FORJAR NOMBRES", filterPlaceholder: "Filtrar...",
+            btnRandom: "SUGERENCIA ALEATORIA", favorites: "FAVORITOS", clear: "LIMPIAR", initialState: "Los nombres aparecerán aquí...",
+            confirmFav: "¿Guardar en favoritos?", suggestTitle: "Sugerencia"
+        }
+    };
+
+    let currentLang = navigator.language.startsWith('pt') ? 'pt' : navigator.language.startsWith('es') ? 'es' : 'en';
+    let suggestionCache = [];
+
+    function* anagramGenerator(arr) {
+        let a = [...arr].sort(); yield a.join('');
+        while (true) {
+            let i = a.length - 2;
+            while (i >= 0 && a[i] >= a[i + 1]) i--;
+            if (i < 0) break;
+            let j = a.length - 1;
+            while (a[j] <= a[i]) j--;
+            [a[i], a[j]] = [a[j], a[i]];
+            let l = i+1, r = a.length-1;
+            while (l < r) { [a[l], a[r]] = [a[r], a[l]]; l++; r--; }
+            yield a.join('');
+        }
+    }
+
+    function runForge() {
+        const word = document.getElementById('wordInput').value.trim().toUpperCase();
+        const filter = document.getElementById('filterInput').value.toUpperCase();
+        const limit = parseInt(document.getElementById('cfgLimit').value);
+        if (!word) return;
+        const t0 = performance.now();
+        const generator = anagramGenerator(word.split(''));
+        let results = [];
+        let totalCount = 0;
+        for (const name of generator) {
+            totalCount++;
+            if (name.includes(filter)) { if (results.length < 5000) results.push(name); }
+            if (totalCount >= limit) break;
+        }
+        const t1 = performance.now();
+        suggestionCache = results;
+        document.getElementById('cpuInfo').innerText = `CPU: ${((t1-t0)/1000).toFixed(3)}s`;
+        document.getElementById('filterArea').style.display = "block";
+        document.getElementById('output').textContent = results.join('   ');
+    }
+
+    function suggestRandom() {
+        if (suggestionCache.length === 0) return;
+        const name = suggestionCache[Math.floor(Math.random() * suggestionCache.length)];
+        if(confirm(`${i18n[currentLang].suggestTitle}: ${name}\n${i18n[currentLang].confirmFav}`)) saveFav(name);
+    }
+
+    function saveFav(name) {
+        let favs = JSON.parse(localStorage.getItem('lexifavs') || "[]");
+        if (!favs.includes(name)) { favs.push(name); localStorage.setItem('lexifavs', JSON.stringify(favs)); renderFavs(); }
+    }
+
+    function renderFavs() {
+        const favs = JSON.parse(localStorage.getItem('lexifavs') || "[]");
+        document.getElementById('favList').innerHTML = favs.map(f => `• ${f}`).join('<br>');
+    }
+
+    function clearFavs() { if(confirm("Clear all?")) { localStorage.removeItem('lexifavs'); renderFavs(); } }
+    function toggleSettings() { document.getElementById('sidePanel').classList.toggle('open'); }
+    function changeLang(lang) {
+        currentLang = lang;
+        document.querySelectorAll('[data-i18n]').forEach(el => el.innerText = i18n[lang][el.getAttribute('data-i18n')]);
+        document.querySelectorAll('[data-placeholder]').forEach(el => el.placeholder = i18n[lang][el.getAttribute('data-placeholder')]);
+    }
+    changeLang(currentLang); renderFavs();
+</script>
+</body>
+</html>
